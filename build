@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-WHERE="${WHERE:-$(dirname "$(realpath "$0")")}"
+WHERE="$(realpath "${WHERE:-$(dirname "$0")/..}")"
 wasmName=GradientOSForReal
 sources="$(echo "grOS gradientmalloc utils tls" | sed "s/ /.c /g").c"
 overriden="memcpy memset"
