@@ -33,43 +33,45 @@
 #include <stdbool.h>
 #include "gradientmalloc.h"
 #include "utils.h"
-#define GMHEAPSIZE 65535
-#define ISINVALIDPTR(p) ((!(p))||(((unsigned char*)(p)<heap)||((unsigned char*)(p)>heap+GMHEAPSIZE)))
+#define ISINVALIDPTR(p) (((uint8_t*)(p)<(uint8_t*)heap)||((uint8_t*)(p)>(uint8_t*)(&__heap_end)))
+#define heap (&__heap_base)
 
-unsigned char heap[GMHEAPSIZE] = {0};
+typedef struct __attribute((packed)) {
+	size_t sz;
+	uint16_t taken;
+} GMallocHdr;
+extern uint8_t __heap_base;
+extern uint8_t __heap_end;
+
+size_t taken = 0;
+
+uint32_t roundUp(uint32_t a, uint32_t b) {
+	return b*((a+b-1)/b);
+}
 
 void*malloc(size_t n) {
 	size_t byteIdx=0;
-	size_t idxOff=0;
-	if(n==0)return(NULL);
-	n+=sizeof(size_t); // add room for header...
-	// too lazy to add real blocks; i'll just do whatever and hope it works
-	while (idxOff<n) {
-		if(byteIdx+idxOff>=GMHEAPSIZE)return(NULL);
-		if (heap[byteIdx+idxOff] != 0) {
-			byteIdx+=idxOff;
-			idxOff=0;
-			// slightly safer...
-			size_t len;
-			memcpy(&len,heap+byteIdx,sizeof(size_t));
-			byteIdx+=len+sizeof(size_t);
-			continue;
-		}
-		idxOff++;
+	while (byteIdx<taken) {
+		GMallocHdr h;
+		memcpy(&h,heap+byteIdx,sizeof(GMallocHdr));
+		h.sz = roundUp(h.sz,sizeof(GMallocHdr));
+		if ((!(h.taken))&&(n<=h.sz)) break;
+		byteIdx += h.sz+sizeof(GMallocHdr);
 	}
-	// to reference the size_t we use heap+byteIdx since idxOff is just a temporary counter to make sure that n bytes ahead is all zeroes.
-	// to reference the data we add sizeof(size_t) since it comes after <amount of bytes a size_t takes up>.
-	n-=sizeof(size_t);
-	memcpy(heap+byteIdx, &n, sizeof(size_t));
-	return(heap+byteIdx+sizeof(size_t));
+	size_t actualN = roundUp(n,sizeof(GMallocHdr));
+	if ((taken+sizeof(GMallocHdr)+actualN)>((&__heap_end)-heap)) return NULL;
+	GMallocHdr new = {0};
+	new.taken = false;
+	new.sz = n;
+	memcpy(heap+byteIdx, &new, sizeof(GMallocHdr));
+	taken += actualN+sizeof(GMallocHdr);
+	return(heap+byteIdx+sizeof(GMallocHdr));
 }
 
 void free(void*ptr) {
 	if(ISINVALIDPTR(ptr))return; // i wish i could throw an error here...
-	size_t safeLen;
-	size_t len = *((size_t*)ptr-1);
-	memcpy(&safeLen, &len, sizeof(size_t));
-	memset((unsigned char*)ptr-sizeof(size_t), 0, safeLen+sizeof(size_t));
+	GMallocHdr*h = (GMallocHdr*)ptr-1;
+	h->taken = false;
 }
 
 void*calloc(size_t a, size_t b) {
@@ -80,16 +82,17 @@ void*calloc(size_t a, size_t b) {
 }
 
 void*realloc(void*ptr, size_t n) {
-	if(ptr==NULL)return(malloc(n));
-	if(ISINVALIDPTR(ptr))return(NULL);
-	if (n==0) {
-		free(ptr);
-		return NULL;
+	if (ptr==NULL) return malloc(n);
+	if (ISINVALIDPTR(ptr)) return NULL;
+	bool bad = (n==0);
+	GMallocHdr*h = NULL;
+	void*moveTo = NULL;
+	if (!(bad)) {
+		h = (GMallocHdr*)ptr-1;
+		void*moveTo=malloc(n);
+		if(moveTo==NULL)return(NULL);
+		memcpy(moveTo, ptr, (n>h->sz)?h->sz:n);
 	}
-	size_t len = *((size_t*)ptr-1);
-	void*moveTo=malloc(n);
-	if(!(moveTo))return(NULL);
-	memcpy(moveTo, ptr, (n>len)?(len):(n));
 	free(ptr);
 	return(moveTo);
 }
