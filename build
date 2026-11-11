@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
-WHERE="$(realpath "${WHERE:-$(dirname "$0")/..}")"
+wh="$(realpath "$WHERE")"
 wasmName=GradientOSForReal
 sources="$(echo "grOS gradientmalloc utils tls" | sed "s/ /.c /g").c"
 overriden="memcpy memset"
 echo "SSO($(echo "char uintptr_t size_t" | sed "s/ /);SSO(/g"));" > sizeofs.c
 printf "%s\x00" "$(cat treeCredit.txt)" | xxd -i -n treeCredit - treeCredit.c # just the way i like it, hacky
-(cd mbedtls && ./build "$WHERE")
+(cd mbedtls && ./build "$wh")
 clang $sources -o "$wasmName" --target=wasm32 -fwasm-exceptions -mexec-model=reactor -nostdlib $(echo "-fno-builtin-$overriden" | sed "s/ / -fno-builtin-/g") "-D__OFFSET__=\"$(date +"%z" | tr -d "\n")\"" -Wl,--no-entry,--import-memory,--import-table,--export=__main__,--export=crashCode,--export=malloc,--export=free,--export=calloc,--export=realloc -Oz -Wall -Werror -Wpedantic
 rm sizeofs.c treeCredit.c
-mv "$wasmName" "$WHERE"/grOS.wasm
+moved=y
+cp --no-preserve=all "$wasmName" "$wh"/grOS.wasm || moved=n
+rm "$wasmName"
+test $moved = y && echo "build great"
