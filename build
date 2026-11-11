@@ -2,7 +2,7 @@
 set -euo pipefail
 wh="$(realpath "$WHERE")"
 wasmName=GradientOSForReal
-sources="$(echo "grOS gradientmalloc utils tls" | sed "s/ /.c /g").c"
+sources="$(echo "grOS gradientmalloc utils" | sed "s/ /.c /g").c"
 overriden="memcpy memset"
 echo "SSO($(echo "char uintptr_t size_t" | sed "s/ /);SSO(/g"));" > sizeofs.c
 printf "%s\x00" "$(cat treeCredit.txt)" | xxd -i -n treeCredit - treeCredit.c # just the way i like it, hacky
