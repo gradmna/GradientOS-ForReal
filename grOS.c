@@ -2,7 +2,6 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "utils.h"
-#include "tls.h"
 #include "treeCredit.c"
 #define SSO(t) setSizeof(#t,sizeof(t))
 #define CRASH(s, cd) crashed(((uint16_t)(s)<<12)|(uint16_t)(cd))
@@ -239,16 +238,6 @@ void renderClock(void) {
 	callCtxFun(str,false);
 }
 
-uint32_t testTlsSock;
-bool testTlsSockReady = false;
-void testTls(void) {
-	if (!(tlsReady)) return;
-	if (!(testTlsSockReady)) {
-		//testTlsSock = tlsOpen("google.com",443);
-		testTlsSockReady = true;
-	}
-}
-
 __attribute__((used)) void render(int frame) { // dont make the ref undefined
 	c str[LEN1] = {0};
 	if(crashCode!=0) {
@@ -283,8 +272,6 @@ __attribute__((used)) void render(int frame) { // dont make the ref undefined
 		if (netSend(gradH,NULL)) netClose(gradH);
 		free(m);
 	}
-	tlsHandleSocks();
-	testTls();
 	callCtxFun("clearRect(0,0,cnv.width,cnv.height)",false); // clear
 	renderMiscTxt(treeCredit);
 	renderWindows();
@@ -301,6 +288,5 @@ void __main__(void) {
 		alert("initialising context failed!");
 		return;
 	}
-	tlsInit();
 	setMainLoop(render);
 }
